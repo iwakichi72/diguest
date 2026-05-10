@@ -1,36 +1,109 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Diguest
 
-## Getting Started
+> 問いで、自分の思考を掘る。
 
-First, run the development server:
+AIと対話しながら、まだ言葉になっていない思考・違和感・問いを掘り起こすローカルツールです。AIはアドバイスも評価もしません。ただ問い、整理し、仮説を提示します。セッションが終わると、対話の全体がMarkdownとして手元に残ります。
+
+---
+
+## 前提条件
+
+- **Node.js** 18以上
+- **Ollama** — [ollama.com](https://ollama.com) からインストール
+
+Ollamaで使いたいモデルを事前にpullしておきます：
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+ollama pull gemma3:4b
+# または
+ollama pull qwen3:8b
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## セットアップ
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# 1. リポジトリをクローン
+git clone <repo-url>
+cd diguest
 
-## Learn More
+# 2. 依存パッケージをインストール
+npm install
 
-To learn more about Next.js, take a look at the following resources:
+# 3. 環境変数ファイルを作成
+cp .env.local.example .env.local
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`.env.local` を開き、使いたいモデル名を設定します：
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=gemma3:4b
+```
 
-## Deploy on Vercel
+```bash
+# 4. 開発サーバーを起動
+npm run dev
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+ブラウザで [http://localhost:3000](http://localhost:3000) を開きます。
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## 使い方
+
+**1. セッションを始める**
+
+ホーム画面で「掘り始める」をクリックし、今日掘り下げたいテーマや問いを入力します。一言でも、問いの形でも構いません。
+
+**2. 対話する**
+
+AIが問いを返します。思ったことをそのまま書いてください。Enter で送信、Shift+Enter で改行します。
+
+**3. 終える**
+
+「ここで終える」をクリックすると、AIが対話の要約と掘り出されたものを生成します。内容を確認して「保存する」を押すと、Markdownとして保存されます。
+
+---
+
+## 保存先
+
+セッションは `~/diguest/` に Markdown ファイルとして保存されます：
+
+```
+~/diguest/
+└── 20250510_143022_最近の違和感.md
+```
+
+ファイル名は `YYYYMMDD_HHMMSS_テーマ.md` の形式です。
+
+---
+
+## 設定
+
+環境変数または `~/diguest/config.json` で設定できます。
+
+| 設定 | 環境変数 | デフォルト |
+|------|----------|-----------|
+| OllamaのURL | `OLLAMA_BASE_URL` | `http://localhost:11434` |
+| 使用モデル | `OLLAMA_MODEL` | `gemma4:e4b` |
+| 保存先ディレクトリ | `NOTES_DIR` | `~/diguest/` |
+
+`~/diguest/config.json` は環境変数より優先されます（サーバー再起動不要）：
+
+```json
+{
+  "ollamaBaseUrl": "http://localhost:11434",
+  "ollamaModel": "qwen3:8b",
+  "notesDir": "/Users/yourname/notes/diguest"
+}
+```
+
+---
+
+## 注意事項
+
+- すべての処理はローカルで完結します。外部APIへの通信はありません。
+- 対話の内容はサーバーに保存されません。ファイルは手元のマシンにのみ残ります。
+- Ollamaが起動していない状態でセッションを開始すると、エラーが表示されます。先に `ollama serve` を実行してください。
