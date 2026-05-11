@@ -4,9 +4,9 @@
 
 | 層 | 技術 | 理由 |
 |----|------|------|
-| フレームワーク | Next.js 15 (App Router) | Server/Client Component分離でFile I/Oを安全に扱える |
+| フレームワーク | Next.js 16 (App Router) | Server/Client Component分離でFile I/Oを安全に扱える |
 | 言語 | TypeScript | 型安全。API境界の誤用を防ぐ |
-| スタイリング | Tailwind CSS | DESIGN_TOKENS.mdのカスタム値をconfigに直接マッピング |
+| スタイリング | Tailwind CSS 4 | `app/globals.css` でDESIGN_TOKENS.mdの値をテーマ化 |
 | AIバックエンド | Ollama HTTP API | ローカル完結。外部通信なし |
 | 永続化 | ローカルファイルシステム（`~/diguest/`）| DBなし制約を満たす唯一の選択肢 |
 | フォント | `next/font` (Inter + Noto Serif JP) | レイアウトシフトなしで読み込み |
@@ -21,26 +21,24 @@ diguest/
 │   ├── layout.tsx                    # ルートレイアウト（テーマ・フォント適用）
 │   ├── page.tsx                      # ホーム画面（Server Component）
 │   ├── session/
+│   │   ├── client.tsx                # 対話画面のClient Component本体
 │   │   ├── new/
 │   │   │   └── page.tsx              # テーマ入力画面（Client Component）
-│   │   └── page.tsx                  # 対話画面（Client Component, ?theme=...）
+│   │   └── page.tsx                  # 対話画面（?theme=...）
 │   ├── notes/
-│   │   ├── page.tsx                  # ノート一覧（Server Component）
 │   │   └── [fileName]/
 │   │       └── page.tsx              # Markdownプレビュー（Server Component）
-│   ├── settings/
-│   │   └── page.tsx                  # 設定画面（Client Component）
 │   └── api/
+│       ├── health/
+│       │   └── route.ts              # GET /api/health（Ollama接続確認）
 │       ├── chat/
 │       │   └── route.ts              # POST /api/chat（ストリーミング）
 │       ├── generate-markdown/
 │       │   └── route.ts              # POST /api/generate-markdown
 │       ├── save-markdown/
 │       │   └── route.ts              # POST /api/save-markdown
-│       └── notes/
-│           ├── route.ts              # GET /api/notes
-│           └── [fileName]/
-│               └── route.ts          # GET /api/notes/[fileName]
+│       └── config/
+│           └── route.ts              # GET /api/config（現在はnotesDir取得）
 ├── lib/
 │   ├── config.ts                     # 設定値（env）の読み込みと型定義
 │   ├── ollama.ts                     # Ollama HTTPクライアント
@@ -49,17 +47,19 @@ diguest/
 ├── components/
 │   ├── DialogueTurn.tsx              # 1ターン分の表示（user/diguest）
 │   ├── StreamingCursor.tsx           # 点滅カーソル（ストリーミング中）
-│   ├── NoteRow.tsx                   # ノート一覧の1行
-│   └── MarkdownRenderer.tsx          # Markdownレンダリング表示
+│   ├── MarkdownPreview.tsx           # 保存前Markdownプレビュー
+│   └── CopyButton.tsx                # Markdownコピー
 ├── hooks/
 │   ├── useSession.ts                 # セッション状態（messages, theme, isStreaming）
 │   └── useStreamingChat.ts           # ストリーミングfetchフック
 ├── types/
 │   └── index.ts                      # 共通型定義
 ├── .env.local                        # 設定（gitignore対象）
-├── tailwind.config.ts
+├── postcss.config.mjs
 └── next.config.ts
 ```
+
+上記は現在のWebUI版実装を基準にした構成。`/notes` の月別一覧、`/settings` 画面、`app/api/notes` はMVP後の候補として扱う。
 
 ---
 
@@ -112,9 +112,7 @@ export type AppConfig = {
 /                    → ホーム（Server Component）
 /session/new         → テーマ入力（Client Component）
 /session?theme=...   → 対話画面（Client Component）
-/notes               → ノート一覧（Server Component）
 /notes/[fileName]    → Markdownプレビュー（Server Component）
-/settings            → 設定（Client Component）
 ```
 
 ### セッションのURL設計の判断
@@ -137,7 +135,7 @@ Ollamaへのストリーミングプロキシ。セッション中の1ターン�
 }
 ```
 
-**Response:** `ReadableStream`（text/event-stream）
+**Response:** `ReadableStream`（`application/x-ndjson; charset=utf-8`）
 
 **処理フロー:**
 ```
@@ -224,85 +222,105 @@ Ollamaへのストリーミングプロキシ。セッション中の1ターン�
 
 ---
 
-### GET `/api/notes`
+### GET `/api/health`
 
-保存済みノート一覧を返す。
+Ollama接続確認を行う。対話画面の初期表示時に呼び出し、未起動の場合はセッション画面にエラーを出す。
 
 **Response:**
 ```typescript
 {
-  notes: NoteMetadata[]   // date降順
+  ok: true
 }
 ```
 
 **処理フロー:**
 ```
-1. notesDir内の *.md ファイルを列挙
-2. 各ファイルのfrontmatter（date, theme, model, turns）をパース
-3. date降順でソート
-4. NoteMetadata[]として返却
-5. notesDir が存在しない → 空配列を返す（エラーにしない）
+1. configからOllama base URLを取得
+2. GET /api/tags に3秒タイムアウトで接続
+3. 成功 → 200
+4. 失敗 → 503 + エラーJSON
 ```
 
 ---
 
-### GET `/api/notes/[fileName]`
+### GET `/api/config`
 
-単一ノートの内容を返す。
+現在はローカル設定のうち `notesDir` を返す。設定の編集・保存はMVP補強の候補として扱う。
 
 **Response:**
 ```typescript
 {
-  metadata: NoteMetadata
-  rawMarkdown: string
+  notesDir: string
 }
 ```
 
-**処理フロー:**
+---
+
+## ノート読み込み設計
+
+保存済みノートの一覧・読み込みは、現状ではAPI RouteではなくServer Componentから `lib/markdown.ts` を直接呼び出す。
+
 ```
-1. path.join(notesDir, fileName) のファイルを読み込み
-2. frontmatterをパース
-3. NoteContent として返却
-4. ファイルが存在しない → 404
+app/page.tsx
+  -> listNotes()
+
+app/notes/[fileName]/page.tsx
+  -> readNote(fileName)
 ```
 
-**セキュリティ:** `fileName` に `../` が含まれる場合は400を返す。`path.resolve` で正規化後に `notesDir` プレフィックスを確認する。
+File I/Oをサーバー側に閉じることで、ブラウザからローカルファイルシステムへ直接アクセスしない。
+
+**処理フロー:**
+```
+1. fileNameをpath.basenameで正規化
+2. path.resolve後にnotesDir配下であることを確認
+3. ファイルを読み込み
+4. frontmatterをパース
+5. NoteContent として返す
+6. 不正パス・ファイルなし・frontmatter不正 → notFound()
+```
+
+**セキュリティ:** `path.resolve` で正規化後に `notesDir` プレフィックスを確認する。
 
 ---
 
 ## セッション状態管理
 
-サーバーに状態なし。すべてクライアントのReact Stateで管理する。
+サーバーにセッション状態は持たない。対話中の状態はクライアントのReact Stateで管理する。
 
 ```
 useSession hook
   state: SessionState
-    - theme: string           （クエリパラメータから初期化）
-    - messages: Message[]     （[]で開始）
-    - isStreaming: boolean     （false）
-    - model: string           （config.ollama.modelから取得）
+    - theme: string
+    - messages: Message[]
+    - isStreaming: boolean
+    - model: string
 
 actions:
-  - appendUserMessage(content)
-  - appendStreamingChunk(chunk)     （ストリーミング中の末尾更新）
-  - finalizeAssistantMessage()      （ストリーミング完了）
-  - startStreaming()
-  - stopStreaming()
+  - addUser(content)
+  - startAssistant()
+  - appendChunk(chunk)
+  - finalize()
+  - removeLastAssistant()
 ```
 
 ### セッション終了フロー
 
 ```
-「終わる」クリック
+「ここで終える」クリック
   ↓
-POST /api/generate-markdown（全messages送信）
+POST /api/generate-markdown（theme, messages, startedAt）
   ↓
 { markdown, fileName } を受け取る
   ↓
-POST /api/save-markdown（markdown + fileName送信）
+保存前Markdownプレビューを表示
   ↓
-成功 → router.push(`/notes/${fileName}`)
-失敗 → エラー表示（ファイルパスを手動表示）
+「保存する」
+  ↓
+POST /api/save-markdown（markdown + fileName）
+  ↓
+成功 → router.push(`/notes/${savedFileName}`)
+失敗 → エラー表示
 ```
 
 ---
@@ -312,36 +330,38 @@ POST /api/save-markdown（markdown + fileName送信）
 ### サーバー側（`/api/chat/route.ts`）
 
 ```typescript
-// Next.js App Router でのストリーミングレスポンス
-export async function POST(request: Request): Promise<Response> {
-  const { messages, theme } = await request.json()
+export async function POST(request: Request) {
+  const body = await request.json()
+  const withSystem = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...body.messages.filter(m => m.role !== 'system'),
+  ]
 
-  const ollamaStream = await fetchOllamaStream(messages, theme)
-
-  return new Response(ollamaStream, {
-    headers: { 'Content-Type': 'text/event-stream' }
+  const stream = await streamChat(withSystem)
+  return new Response(stream, {
+    headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' },
   })
 }
-```
-
 ### クライアント側（`useStreamingChat.ts`）
 
 ```typescript
-// ReadableStreamを読んでstateを更新する
 const reader = response.body!.getReader()
 const decoder = new TextDecoder()
+let buffer = ''
 
 while (true) {
   const { done, value } = await reader.read()
   if (done) break
 
-  const chunk = decoder.decode(value)
-  // Ollamaのストリームはndjson（1行1JSON）
-  for (const line of chunk.split('\n').filter(Boolean)) {
+  buffer += decoder.decode(value, { stream: true })
+  const lines = buffer.split('\n')
+  buffer = lines.pop() ?? ''
+
+  for (const line of lines) {
+    if (!line.trim()) continue
     const parsed = JSON.parse(line)
-    if (parsed.message?.content) {
-      appendChunk(parsed.message.content)
-    }
+    if (parsed.message?.content) onChunk(parsed.message.content)
+    if (parsed.done) break
   }
 }
 ```
@@ -455,44 +475,43 @@ NOTES_DIR=               # 空の場合 ~/diguest/ を使用
 | ファイル | 種類 | データ取得方法 |
 |---------|------|------|
 | `app/page.tsx` | Server | `lib/markdown.ts` の `listNotes()` を直接 import |
-| `app/notes/page.tsx` | Server | 同上 |
 | `app/notes/[fileName]/page.tsx` | Server | `lib/markdown.ts` の `readNote()` を直接 import |
 | `app/session/new/page.tsx` | Client | フォーム操作 |
-| `app/session/page.tsx` | Client | ストリーミング・リアルタイム更新 |
-| `app/settings/page.tsx` | Client | フォーム操作 |
+| `app/session/page.tsx` | Server | `Suspense` で `SessionClient` を包む |
+| `app/session/client.tsx` | Client | ストリーミング・リアルタイム更新 |
 | `components/DialogueTurn.tsx` | Server可 | 静的レンダリング |
-| `components/MarkdownRenderer.tsx` | Server可 | 静的レンダリング |
+| `components/MarkdownPreview.tsx` | Client | 保存前プレビューの操作 |
+| `components/CopyButton.tsx` | Client | Clipboard API |
 | `components/StreamingCursor.tsx` | Client | アニメーション |
+
+`/notes` と `/settings` はMVP補強で追加する候補。
 
 ---
 
 ## Tailwind設定方針
 
-`DESIGN_TOKENS.md` のカラー・フォントをTailwindのカスタムテーマに直接マッピングする。
+Tailwind CSS 4のCSS-first設定を使い、`app/globals.css` の `@theme` に `DESIGN_TOKENS.md` のカラー・フォントをマッピングする。
 
-```typescript
-// tailwind.config.ts（抜粋）
-theme: {
-  extend: {
-    colors: {
-      'bg-base':      '#111009',
-      'bg-surface':   '#1A1814',
-      'bg-subtle':    '#242018',
-      'text-primary': '#EDE8E1',
-      'text-secondary': '#7A7468',
-      'text-muted':   '#443E38',
-      'accent':       '#C4956A',
-      'border':       '#2C2820',
-      'border-focus': '#5A5040',
-    },
-    fontFamily: {
-      ui:      ['var(--font-inter)', 'Hiragino Sans', 'sans-serif'],
-      reading: ['var(--font-noto-serif-jp)', 'Hiragino Mincho ProN', 'serif'],
-    },
-    maxWidth: {
-      content: '680px',
-    },
-  }
+```css
+@import "tailwindcss";
+
+@theme {
+  --color-bg-base: #111009;
+  --color-bg-surface: #1a1814;
+  --color-bg-subtle: #242018;
+  --color-text-primary: #ede8e1;
+  --color-text-secondary: #7a7468;
+  --color-text-muted: #443e38;
+  --color-accent: #c4956a;
+  --color-border: #2c2820;
+  --color-border-focus: #5a5040;
+
+  --font-ui: var(--font-inter), "Hiragino Sans", system-ui, sans-serif;
+  --font-reading: var(--font-noto-serif), "Hiragino Mincho ProN", serif;
+}
+
+@utility max-w-content {
+  max-width: 680px;
 }
 ```
 
