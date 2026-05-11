@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { listNotes } from '@/lib/markdown'
+import DigStartLink from '@/components/DigStartLink'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,12 +21,11 @@ export default async function Home() {
           <p className="font-reading text-xl text-text-primary mb-8">
             今日、何を掘りますか？
           </p>
-          <Link
+          <DigStartLink
             href="/session/new"
-            className="inline-block font-ui text-sm text-text-secondary border border-border rounded px-6 py-3 hover:text-text-primary hover:border-border-focus transition-colors"
-          >
-            掘り始める
-          </Link>
+            label="掘り始める"
+            className="inline-block font-ui text-sm text-text-secondary border border-border rounded px-6 py-3 hover:text-text-primary hover:border-border-focus transition-colors disabled:cursor-progress"
+          />
         </section>
 
         {recent.length > 0 && (

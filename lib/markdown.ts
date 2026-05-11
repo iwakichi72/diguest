@@ -77,10 +77,14 @@ export function buildMarkdown(params: {
 
 function resolvedNotesDir(): string {
   const { notesDir } = getConfig()
-  if (notesDir.startsWith('~/') || notesDir === '~') {
-    return path.join(os.homedir(), notesDir.slice(1))
+  return expandHome(notesDir)
+}
+
+function expandHome(dir: string): string {
+  if (dir.startsWith('~/') || dir === '~') {
+    return path.join(os.homedir(), dir.slice(1))
   }
-  return notesDir
+  return dir
 }
 
 function guardPath(fileName: string, dir: string): string {
@@ -95,8 +99,9 @@ function guardPath(fileName: string, dir: string): string {
 export async function saveNote(
   markdown: string,
   fileName: string,
+  saveDir?: string,
 ): Promise<{ filePath: string; fileName: string }> {
-  const dir = resolvedNotesDir()
+  const dir = saveDir ? expandHome(saveDir) : resolvedNotesDir()
   const resolvedDir = path.resolve(dir)
   await fs.mkdir(resolvedDir, { recursive: true })
 

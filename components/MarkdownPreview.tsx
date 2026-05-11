@@ -1,40 +1,60 @@
 'use client'
 
 import ReactMarkdown from 'react-markdown'
+import BrushLine from './BrushLine'
 
 type Props = {
   markdown: string
   isSaving: boolean
+  saveDir: string
+  onSaveDirChange: (dir: string) => void
   onSave: () => void
   onCancel: () => void
 }
 
-export default function MarkdownPreview({ markdown, isSaving, onSave, onCancel }: Props) {
+export default function MarkdownPreview({ markdown, isSaving, saveDir, onSaveDirChange, onSave, onCancel }: Props) {
   const body = markdown.replace(/^---[\s\S]*?---\n/, '')
 
   return (
-    <div className="fixed inset-0 z-20 bg-bg-base overflow-y-auto">
+    <div className="fixed inset-0 z-20 bg-bg-base overflow-y-auto" aria-busy={isSaving}>
       <header className="sticky top-0 z-10 bg-bg-base border-b border-border">
         <div className="max-w-content mx-auto px-6 py-4 flex items-center justify-between gap-4">
           <span className="font-ui text-xs text-text-muted tracking-wider uppercase">
             記録
           </span>
-          <div className="flex items-center gap-6">
-            <button
-              onClick={onCancel}
-              disabled={isSaving}
-              className="font-ui text-sm text-text-muted hover:text-text-secondary transition-colors disabled:opacity-40"
-            >
-              続きを掘る
-            </button>
-            <button
-              onClick={onSave}
-              disabled={isSaving}
-              className="font-ui text-sm text-text-secondary hover:text-text-primary transition-colors disabled:opacity-40"
-            >
-              {isSaving ? '保存中…' : '保存する'}
-            </button>
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-6">
+              <button
+                onClick={onCancel}
+                disabled={isSaving}
+                className="font-ui text-sm text-text-muted hover:text-text-secondary transition-colors disabled:opacity-40"
+              >
+                続きを掘る
+              </button>
+              <button
+                onClick={onSave}
+                disabled={isSaving}
+                aria-busy={isSaving}
+                className="font-ui text-sm text-text-secondary hover:text-text-primary transition-colors disabled:opacity-40"
+              >
+                {isSaving ? '綴じています…' : '保存する'}
+              </button>
+            </div>
+            <div className="h-px self-end">
+              {isSaving && <BrushLine size="sm" loop />}
+            </div>
           </div>
+        </div>
+        <div className="max-w-content mx-auto px-6 pb-3 flex items-center gap-2">
+          <label className="font-ui text-xs text-text-muted shrink-0">保存先</label>
+          <input
+            type="text"
+            value={saveDir}
+            onChange={e => onSaveDirChange(e.target.value)}
+            disabled={isSaving}
+            aria-busy={isSaving}
+            className={`flex-1 font-ui text-xs text-text-secondary bg-transparent border-b border-border focus:border-border-focus focus:outline-none disabled:opacity-40 py-0.5 min-w-0 ${isSaving ? 'dig-shimmer' : ''}`}
+          />
         </div>
       </header>
 

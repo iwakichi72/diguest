@@ -7,6 +7,7 @@ import { useStreamingChat } from '@/hooks/useStreamingChat'
 import DialogueTurn from '@/components/DialogueTurn'
 import MarkdownPreview from '@/components/MarkdownPreview'
 import StreamingCursor from '@/components/StreamingCursor'
+import DigOverlay from '@/components/DigOverlay'
 
 export default function SessionClient() {
   const searchParams = useSearchParams()
@@ -18,6 +19,7 @@ export default function SessionClient() {
   const [error, setError] = useState<string | null>(null)
   const [savingPhase, setSavingPhase] = useState<null | 'generating' | 'preview' | 'saving'>(null)
   const [previewData, setPreviewData] = useState<{ markdown: string; fileName: string } | null>(null)
+  const [saveDir, setSaveDir] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -30,6 +32,12 @@ export default function SessionClient() {
   useEffect(() => {
     if (!theme) router.replace('/session/new')
   }, [theme, router])
+
+  useEffect(() => {
+    fetch('/api/config').then(r => r.json()).then(data => {
+      if (data.notesDir) setSaveDir(data.notesDir)
+    }).catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!theme) return
@@ -133,7 +141,7 @@ export default function SessionClient() {
       const saveRes = await fetch('/api/save-markdown', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ markdown: previewData.markdown, fileName: previewData.fileName }),
+        body: JSON.stringify({ markdown: previewData.markdown, fileName: previewData.fileName, saveDir: saveDir || undefined }),
       })
 
       if (!saveRes.ok) throw new Error('保存に失敗しました')
@@ -151,10 +159,13 @@ export default function SessionClient() {
 
   return (
     <div className="min-h-screen bg-bg-base flex flex-col">
+      {savingPhase === 'generating' && <DigOverlay />}
       {(savingPhase === 'preview' || savingPhase === 'saving') && previewData && (
         <MarkdownPreview
           markdown={previewData.markdown}
           isSaving={savingPhase === 'saving'}
+          saveDir={saveDir}
+          onSaveDirChange={setSaveDir}
           onSave={handleSave}
           onCancel={() => setSavingPhase(null)}
         />
@@ -166,6 +177,7 @@ export default function SessionClient() {
           <button
             onClick={handleEnd}
             disabled={isBusy}
+            aria-busy={isBusy}
             className="font-ui text-sm text-text-muted hover:text-text-secondary transition-colors shrink-0 disabled:opacity-40"
           >
             {savingPhase === 'generating' ? 'まとめています…' : 'ここで終える'}
@@ -212,8 +224,9 @@ export default function SessionClient() {
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             disabled={isBusy}
+            aria-busy={isBusy}
             rows={3}
-            className="w-full bg-bg-surface border border-border rounded px-5 py-4 font-reading text-lg text-text-primary leading-[1.9] resize-none focus:border-border-focus focus:outline-none disabled:opacity-40 placeholder-text-muted"
+            className={`w-full bg-bg-surface border border-border rounded px-5 py-4 font-reading text-lg text-text-primary leading-[1.9] resize-none focus:border-border-focus focus:outline-none disabled:opacity-40 placeholder-text-muted ${isBusy ? 'dig-shimmer' : ''}`}
             placeholder="…"
           />
           <div className="flex justify-between items-center mt-2">
