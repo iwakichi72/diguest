@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SessionView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var isFocused: Bool
 
     var body: some View {
@@ -21,14 +22,24 @@ struct SessionView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 34) {
                         ForEach(model.messages) { message in
-                            DialogueBlock(message: message)
-                                .id(message.id)
+                            DialogueBlock(
+                                message: message,
+                                isStreaming: model.isStreaming && model.messages.last?.id == message.id
+                            )
+                            .id(message.id)
+                        }
+
+                        if model.isGeneratingMarkdown {
+                            MarkdownAssemblyView()
+                                .id("markdown-assembly")
+                                .transition(.opacity)
                         }
 
                         if let error = model.errorMessage {
                             Text(error)
                                 .font(.system(size: 13))
                                 .foregroundStyle(Theme.error)
+                                .quietReveal(duration: MotionToken.base, blur: 1)
                         }
                     }
                     .frame(maxWidth: 680, alignment: .leading)
@@ -38,13 +49,23 @@ struct SessionView: View {
                 }
                 .onChange(of: model.messages) { _ in
                     if let last = model.messages.last {
-                        proxy.scrollTo(last.id, anchor: .bottom)
+                        withAnimation(MotionToken.animation(MotionToken.scroll, reduceMotion: reduceMotion)) {
+                            proxy.scrollTo(last.id, anchor: .bottom)
+                        }
+                    }
+                }
+                .onChange(of: model.isGeneratingMarkdown) { isGenerating in
+                    if isGenerating {
+                        withAnimation(MotionToken.animation(MotionToken.scroll, reduceMotion: reduceMotion)) {
+                            proxy.scrollTo("markdown-assembly", anchor: .bottom)
+                        }
                     }
                 }
             }
 
             inputArea
         }
+        .animation(MotionToken.animation(MotionToken.base, reduceMotion: reduceMotion), value: model.isGeneratingMarkdown)
         .onAppear {
             isFocused = true
         }
@@ -71,8 +92,12 @@ struct SessionView: View {
                     Button {
                         model.toggleSpeech()
                     } label: {
-                        Image(systemName: model.speech.isListening ? "mic.fill" : "mic")
-                            .frame(width: 30, height: 30)
+                        ZStack {
+                            ListeningPulse(isActive: model.speech.isListening)
+                                .frame(width: 30, height: 30)
+                            Image(systemName: model.speech.isListening ? "mic.fill" : "mic")
+                                .frame(width: 30, height: 30)
+                        }
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(model.speech.isListening ? Theme.accent : Theme.secondary)
@@ -91,13 +116,18 @@ struct SessionView: View {
                     Text(speechError)
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.error)
+                        .quietReveal(duration: MotionToken.base, blur: 1)
                 }
                 Button("置く") {
                     model.sendInput()
                 }
                 .buttonStyle(QuietButtonStyle())
                 .keyboardShortcut(.return, modifiers: [.command])
-                .disabled(model.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isStreaming)
+                .disabled(
+                    model.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || model.isStreaming
+                        || model.isGeneratingMarkdown
+                )
                 Text("· \(model.messages.filter { $0.role == .user }.count)")
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.muted)
@@ -115,6 +145,7 @@ struct SessionView: View {
 
 struct DialogueBlock: View {
     let message: Message
+    let isStreaming: Bool
 
     var body: some View {
         if message.role == .assistant {
@@ -123,21 +154,48 @@ struct DialogueBlock: View {
                     .fill(Theme.border)
                     .frame(height: 1)
                     .opacity(0.8)
-                Text(message.content.isEmpty ? " " : message.content)
-                    .font(.system(size: 18, design: .serif))
-                    .italic()
-                    .lineSpacing(7)
-                    .foregroundStyle(Theme.secondary)
+                    .quietRuleReveal(delay: 0.02)
+
+                HStack(alignment: .top, spacing: 5) {
+                    Text(message.content)
+                        .font(.system(size: 18, design: .serif))
+                        .italic()
+                        .lineSpacing(7)
+                        .foregroundStyle(Theme.secondary)
+
+                    if isStreaming {
+                        StreamingCursor()
+                            .padding(.top, 2)
+                    }
+                }
+                .quietReveal(delay: 0.08, duration: MotionToken.slow, blur: 1.5)
+
                 Rectangle()
                     .fill(Theme.border)
                     .frame(height: 1)
                     .opacity(0.8)
+                    .quietRuleReveal(delay: 0.12)
             }
+            .quietReveal(duration: MotionToken.slow, blur: 1)
         } else {
             Text(message.content)
                 .font(.system(size: 19, design: .serif))
                 .lineSpacing(8)
                 .foregroundStyle(Theme.text)
+                .quietReveal(duration: MotionToken.base, blur: 1)
         }
+    }
+}
+
+private struct MarkdownAssemblyView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            MarkdownGenerationTrace()
+                .frame(maxWidth: 260)
+            Text("Markdown")
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(Theme.muted)
+        }
+        .quietReveal(duration: MotionToken.slow, blur: 1)
     }
 }

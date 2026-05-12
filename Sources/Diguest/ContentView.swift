@@ -2,27 +2,41 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
             Theme.surface.ignoresSafeArea()
 
-            switch model.screen {
-            case .home:
-                HomeView()
-            case .themeEntry:
-                ThemeEntryView()
-            case .session:
-                SessionView()
-            case .preview:
-                PreviewView()
-            case .note(let note):
-                NoteView(note: note)
-            case .settings:
-                SettingsView()
+            Group {
+                switch model.screen {
+                case .home:
+                    HomeView()
+                case .themeEntry:
+                    ThemeEntryView()
+                case .session:
+                    SessionView()
+                case .preview:
+                    PreviewView()
+                case .note(let note):
+                    NoteView(note: note)
+                case .settings:
+                    SettingsView()
+                }
             }
+            .id(model.screen.motionIdentity)
+            .transition(screenTransition)
         }
         .foregroundStyle(Theme.text)
+        .animation(MotionToken.animation(MotionToken.page, reduceMotion: reduceMotion), value: model.screen.motionIdentity)
+    }
+
+    private var screenTransition: AnyTransition {
+        if reduceMotion {
+            .opacity
+        } else {
+            .opacity.combined(with: .scale(scale: 0.996, anchor: .center))
+        }
     }
 }
 
@@ -80,3 +94,21 @@ struct HeaderBar: View {
     }
 }
 
+extension AppScreen {
+    var motionIdentity: String {
+        switch self {
+        case .home:
+            return "home"
+        case .themeEntry:
+            return "themeEntry"
+        case .session:
+            return "session"
+        case .preview:
+            return "preview"
+        case .note(let note):
+            return "note-\(note.metadata.fileName)"
+        case .settings:
+            return "settings"
+        }
+    }
+}

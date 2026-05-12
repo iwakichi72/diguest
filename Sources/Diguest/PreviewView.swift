@@ -29,6 +29,7 @@ struct PreviewView: View {
                     .frame(maxWidth: 760, alignment: .leading)
                     .padding(.horizontal, 28)
                     .padding(.vertical, 36)
+                    .quietReveal(delay: 0.04, duration: MotionToken.slow, blur: 1.5)
             }
 
             if let error = model.errorMessage {
@@ -36,8 +37,8 @@ struct PreviewView: View {
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.error)
                     .padding(.bottom, 14)
+                    .quietReveal(duration: MotionToken.base, blur: 1)
             }
         }
     }
 }
-
