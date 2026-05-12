@@ -32,7 +32,7 @@ struct SessionView: View {
                         if model.isGeneratingMarkdown {
                             MarkdownAssemblyView()
                                 .id("markdown-assembly")
-                                .transition(.opacity)
+                                .transition(.opacity.combined(with: .scale(scale: 0.985, anchor: .topLeading)))
                         }
 
                         if let error = model.errorMessage {
@@ -189,13 +189,7 @@ struct DialogueBlock: View {
 
 private struct MarkdownAssemblyView: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            MarkdownGenerationTrace()
-                .frame(maxWidth: 260)
-            Text("Markdown")
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(Theme.muted)
-        }
-        .quietReveal(duration: MotionToken.slow, blur: 1)
+        PaperAssemblyView()
+            .quietReveal(duration: 0.44, blur: 4, scale: 0.985)
     }
 }
