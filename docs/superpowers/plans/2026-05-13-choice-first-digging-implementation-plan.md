@@ -189,7 +189,7 @@ Keyboard behavior:
 Interaction detail for editing:
 
 - Selecting an option can immediately continue.
-- Add a small quiet secondary action such as `少し直して置く` for the selected option.
+- Add a small quiet secondary action such as `少し直して掘る` for the selected option.
 - Implement editing after the main selection/free-writing loop is stable, but keep it inside this feature's definition of done.
 
 ## Implementation Slice 5: Markdown
