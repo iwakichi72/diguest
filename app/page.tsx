@@ -31,9 +31,17 @@ export default async function Home() {
         {recent.length > 0 && (
           <section>
             <div className="border-t border-border mb-8" />
-            <p className="font-ui text-xs text-text-muted mb-6 tracking-wider uppercase">
-              過去のノート
-            </p>
+            <div className="flex items-center justify-between gap-4 mb-6">
+              <p className="font-ui text-xs text-text-muted tracking-wider uppercase">
+                過去のノート
+              </p>
+              <Link
+                href="/notes"
+                className="font-ui text-xs text-text-muted hover:text-text-secondary transition-colors"
+              >
+                すべて見る
+              </Link>
+            </div>
             <ul>
               {recent.map(note => (
                 <li key={note.fileName}>
