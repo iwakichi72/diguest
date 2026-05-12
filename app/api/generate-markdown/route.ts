@@ -2,6 +2,7 @@ import { buildSummaryPrompt } from '@/lib/prompts'
 import { generateText, OllamaError } from '@/lib/ollama'
 import { buildMarkdown, buildFileName } from '@/lib/markdown'
 import { getConfig } from '@/lib/config'
+import { hasAdvisoryLanguage, removeAdvisoryItems } from '@/lib/responseGuard'
 import type { Message } from '@/types'
 
 export async function POST(request: Request) {
@@ -35,9 +36,12 @@ export async function POST(request: Request) {
     if (jsonMatch) {
       try {
         const parsed = JSON.parse(jsonMatch[0])
-        summary = typeof parsed.summary === 'string' ? parsed.summary : ''
+        const parsedSummary = typeof parsed.summary === 'string' ? parsed.summary : ''
+        summary = hasAdvisoryLanguage(parsedSummary) ? '' : parsedSummary
         surfaced = Array.isArray(parsed.surfaced)
-          ? parsed.surfaced.filter((s: unknown): s is string => typeof s === 'string')
+          ? removeAdvisoryItems(
+              parsed.surfaced.filter((s: unknown): s is string => typeof s === 'string')
+            )
           : []
       } catch {
         // JSON parse failed — use empty values and continue
