@@ -60,7 +60,7 @@ swift run Diguest
 ```json
 {
   "ollamaBaseUrl": "http://localhost:11434",
-  "ollamaModel": "gemma3:4b",
+  "ollamaModel": "gemma4:e4b",
   "notesDir": "~/diguest"
 }
 ```
