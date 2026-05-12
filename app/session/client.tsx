@@ -17,6 +17,7 @@ export default function SessionClient() {
   const startedAt = useRef(new Date().toISOString())
   const [input, setInput] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [isCheckingConnection, setIsCheckingConnection] = useState(false)
   const [savingPhase, setSavingPhase] = useState<null | 'generating' | 'preview' | 'saving'>(null)
   const [previewData, setPreviewData] = useState<{ markdown: string; fileName: string } | null>(null)
   const [saveDir, setSaveDir] = useState('')
@@ -33,6 +34,24 @@ export default function SessionClient() {
     if (!theme) router.replace('/session/new')
   }, [theme, router])
 
+  const retryConnection = useCallback(async () => {
+    setIsCheckingConnection(true)
+    try {
+      const response = await fetch('/api/health')
+      if (response.ok) {
+        setError(null)
+        return
+      }
+
+      const data = await response.json().catch(() => ({}))
+      setError(data.error ?? 'Ollamaが見つかりません')
+    } catch {
+      setError('Ollamaが見つかりません')
+    } finally {
+      setIsCheckingConnection(false)
+    }
+  }, [])
+
   useEffect(() => {
     fetch('/api/config').then(r => r.json()).then(data => {
       if (data.notesDir) setSaveDir(data.notesDir)
@@ -41,12 +60,16 @@ export default function SessionClient() {
 
   useEffect(() => {
     if (!theme) return
-    fetch('/api/health').then(async r => {
-      if (!r.ok) {
-        const data = await r.json().catch(() => ({}))
-        setError(data.error ?? 'Ollama が起動していません')
+
+    fetch('/api/health').then(async response => {
+      if (response.ok) {
+        setError(null)
+        return
       }
-    }).catch(() => setError('Ollama が起動していません'))
+
+      const data = await response.json().catch(() => ({}))
+      setError(data.error ?? 'Ollamaが見つかりません')
+    }).catch(() => setError('Ollamaが見つかりません'))
   }, [theme])
 
   useEffect(() => {
@@ -210,7 +233,19 @@ export default function SessionClient() {
           )}
 
         {error && (
-          <p className="font-ui text-sm mt-4 text-error">{error}</p>
+          <div className="mt-4">
+            <p className="font-ui text-sm text-error">{error}</p>
+            {error.includes('Ollama') && (
+              <button
+                type="button"
+                onClick={retryConnection}
+                disabled={isCheckingConnection}
+                className="font-ui text-xs text-text-muted mt-3 hover:text-text-secondary transition-colors disabled:opacity-40"
+              >
+                {isCheckingConnection ? '確認しています…' : 'もう一度試す'}
+              </button>
+            )}
+          </div>
         )}
         <div ref={bottomRef} />
       </main>
