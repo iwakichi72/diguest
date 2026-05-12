@@ -54,6 +54,61 @@ struct SummaryPayload: Codable {
     let surfaced: [String]
 }
 
+struct ChoiceTurn: Identifiable, Equatable {
+    let id: UUID
+    var question: String
+    var options: [ChoiceOption]
+    var rawAssistantText: String
+    var answer: ChoiceAnswer?
+    var isFallback: Bool
+
+    init(
+        id: UUID = UUID(),
+        question: String,
+        options: [ChoiceOption],
+        rawAssistantText: String,
+        answer: ChoiceAnswer? = nil,
+        isFallback: Bool = false
+    ) {
+        self.id = id
+        self.question = question
+        self.options = options
+        self.rawAssistantText = rawAssistantText
+        self.answer = answer
+        self.isFallback = isFallback
+    }
+}
+
+struct ChoiceOption: Identifiable, Equatable {
+    let id: UUID
+    var index: Int
+    var text: String
+    var isFreeWrite: Bool
+
+    init(id: UUID = UUID(), index: Int, text: String, isFreeWrite: Bool = false) {
+        self.id = id
+        self.index = index
+        self.text = text
+        self.isFreeWrite = isFreeWrite
+    }
+}
+
+enum ChoiceAnswer: Equatable {
+    case selected(index: Int, text: String)
+    case edited(originalIndex: Int, originalText: String, editedText: String)
+    case freeWritten(String)
+}
+
+enum ManualAnswerMode: Equatable {
+    case freeWrite
+    case edit(optionIndex: Int, originalText: String)
+}
+
+struct ChoiceResponsePayload: Codable, Equatable {
+    let question: String
+    let options: [String]
+}
+
 enum AppScreen: Equatable {
     case home
     case themeEntry
@@ -62,4 +117,3 @@ enum AppScreen: Equatable {
     case note(NoteContent)
     case settings
 }
-

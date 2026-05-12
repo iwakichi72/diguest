@@ -21,12 +21,28 @@ struct SessionView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 34) {
-                        ForEach(model.messages) { message in
-                            DialogueBlock(
-                                message: message,
-                                isStreaming: model.isStreaming && model.messages.last?.id == message.id
+                        if !model.seedText.isEmpty {
+                            SeedBlock(text: model.seedText)
+                                .id("seed")
+                        }
+
+                        ForEach(model.choiceTurns) { turn in
+                            ChoiceTurnBlock(
+                                turn: turn,
+                                isActive: isActive(turn),
+                                pendingChoice: pendingChoice(for: turn),
+                                manualAnswerMode: model.manualAnswerMode,
+                                onSelect: model.selectOption,
+                                onConfirm: model.confirmPendingChoice,
+                                onEdit: model.editPendingChoice
                             )
-                            .id(message.id)
+                            .id(turn.id)
+                        }
+
+                        if model.isStreaming {
+                            GeneratingChoiceBlock()
+                                .id("choice-streaming")
+                                .transition(.opacity.combined(with: .scale(scale: 0.985, anchor: .topLeading)))
                         }
 
                         if model.isGeneratingMarkdown {
@@ -47,10 +63,17 @@ struct SessionView: View {
                     .padding(.top, 56)
                     .padding(.bottom, 24)
                 }
-                .onChange(of: model.messages) { _ in
-                    if let last = model.messages.last {
+                .onChange(of: model.choiceTurns) { _ in
+                    if let last = model.choiceTurns.last {
                         withAnimation(MotionToken.animation(MotionToken.scroll, reduceMotion: reduceMotion)) {
                             proxy.scrollTo(last.id, anchor: .bottom)
+                        }
+                    }
+                }
+                .onChange(of: model.isStreaming) { isStreaming in
+                    if isStreaming {
+                        withAnimation(MotionToken.animation(MotionToken.scroll, reduceMotion: reduceMotion)) {
+                            proxy.scrollTo("choice-streaming", anchor: .bottom)
                         }
                     }
                 }
@@ -72,6 +95,14 @@ struct SessionView: View {
     }
 
     private var inputArea: some View {
+        if !isEditorVisible {
+            return AnyView(statusArea)
+        }
+
+        return AnyView(editorArea)
+    }
+
+    private var editorArea: some View {
         VStack(spacing: 8) {
             ZStack(alignment: .topTrailing) {
                 TextEditor(text: $model.input)
@@ -108,7 +139,7 @@ struct SessionView: View {
             }
 
             HStack {
-                Text(model.speech.isListening ? "聞いています。もう一度押すと停止します。" : "Command+Return で送信")
+                Text(helperText)
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.muted)
                 Spacer()
@@ -118,7 +149,14 @@ struct SessionView: View {
                         .foregroundStyle(Theme.error)
                         .quietReveal(duration: MotionToken.base, blur: 1)
                 }
-                Button("置く") {
+                if canCancelManualInput {
+                    Button("戻る") {
+                        model.cancelManualAnswer()
+                    }
+                    .buttonStyle(QuietButtonStyle())
+                    .disabled(model.isStreaming || model.isGeneratingMarkdown)
+                }
+                Button("掘る") {
                     model.sendInput()
                 }
                 .buttonStyle(QuietButtonStyle())
@@ -128,7 +166,7 @@ struct SessionView: View {
                         || model.isStreaming
                         || model.isGeneratingMarkdown
                 )
-                Text("· \(model.messages.filter { $0.role == .user }.count)")
+                Text("· \(answerCount)")
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.muted)
             }
@@ -140,6 +178,90 @@ struct SessionView: View {
         .overlay(alignment: .top) {
             Rectangle().fill(Theme.border).frame(height: 1)
         }
+    }
+
+    private var statusArea: some View {
+        HStack {
+            Text(statusText)
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.muted)
+            Spacer()
+            Text("· \(answerCount)")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.muted)
+        }
+        .frame(maxWidth: 680)
+        .padding(.horizontal, 28)
+        .padding(.vertical, 16)
+        .background(Theme.base)
+        .overlay(alignment: .top) {
+            Rectangle().fill(Theme.border).frame(height: 1)
+        }
+    }
+
+    private var isEditorVisible: Bool {
+        guard !model.isGeneratingMarkdown else { return false }
+        return (model.choiceTurns.isEmpty && !model.isStreaming) || model.manualAnswerMode != nil
+    }
+
+    private var helperText: String {
+        if model.speech.isListening {
+            return "聞いています。もう一度押すと停止します。"
+        }
+
+        switch model.manualAnswerMode {
+        case .edit:
+            return "少し直して Command+Return で掘る"
+        case .freeWrite:
+            return "自由記述を Command+Return で掘る"
+        case nil:
+            return "最初の言葉を Command+Return で掘る"
+        }
+    }
+
+    private var statusText: String {
+        if model.isStreaming {
+            return "問いを整えています"
+        }
+
+        if model.pendingChoice != nil {
+            return "選んだ言葉でこのまま掘るか、少し直せます"
+        }
+
+        return "近いものを選びます"
+    }
+
+    private var answerCount: Int {
+        ChoiceTurnLogBuilder.answeredTurnCount(seedText: model.seedText, turns: model.choiceTurns)
+    }
+
+    private var canCancelManualInput: Bool {
+        guard model.manualAnswerMode != nil else { return false }
+        return model.choiceTurns.last?.options.isEmpty == false
+    }
+
+    private func isActive(_ turn: ChoiceTurn) -> Bool {
+        model.choiceTurns.last?.id == turn.id
+            && turn.answer == nil
+            && !model.isStreaming
+            && !model.isGeneratingMarkdown
+    }
+
+    private func pendingChoice(for turn: ChoiceTurn) -> ChoiceOption? {
+        guard isActive(turn) else { return nil }
+        return model.pendingChoice
+    }
+}
+
+struct SeedBlock: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 19, design: .serif))
+            .lineSpacing(8)
+            .foregroundStyle(Theme.text)
+            .quietReveal(duration: MotionToken.base, blur: 1)
     }
 }
 
@@ -184,6 +306,144 @@ struct DialogueBlock: View {
                 .foregroundStyle(Theme.text)
                 .quietReveal(duration: MotionToken.base, blur: 1)
         }
+    }
+}
+
+struct ChoiceTurnBlock: View {
+    let turn: ChoiceTurn
+    let isActive: Bool
+    let pendingChoice: ChoiceOption?
+    let manualAnswerMode: ManualAnswerMode?
+    let onSelect: (ChoiceOption) -> Void
+    let onConfirm: () -> Void
+    let onEdit: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Rectangle()
+                .fill(Theme.border)
+                .frame(height: 1)
+                .opacity(0.8)
+                .quietRuleReveal(delay: 0.02)
+
+            Text(turn.question)
+                .font(.system(size: 18, design: .serif))
+                .italic()
+                .lineSpacing(7)
+                .foregroundStyle(Theme.secondary)
+                .quietReveal(delay: 0.08, duration: MotionToken.slow, blur: 1.5)
+
+            if !turn.options.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(turn.options) { option in
+                        ChoiceOptionRow(
+                            option: option,
+                            isEnabled: isActive && pendingChoice == nil && manualAnswerMode == nil,
+                            isPending: pendingChoice?.id == option.id
+                        ) {
+                            onSelect(option)
+                        }
+                    }
+                }
+                .quietReveal(delay: 0.12, duration: MotionToken.slow, blur: 1.5)
+            }
+
+            if let pendingChoice {
+                PendingChoiceConfirmation(
+                    option: pendingChoice,
+                    onConfirm: onConfirm,
+                    onEdit: onEdit
+                )
+                .quietReveal(duration: MotionToken.base, blur: 1)
+            }
+
+            if let answer = turn.answer {
+                Text(ChoiceTurnLogBuilder.answerText(for: answer))
+                    .font(.system(size: 17, design: .serif))
+                    .lineSpacing(7)
+                    .foregroundStyle(Theme.text)
+                    .padding(.top, 4)
+                    .quietReveal(duration: MotionToken.base, blur: 1)
+            }
+
+            Rectangle()
+                .fill(Theme.border)
+                .frame(height: 1)
+                .opacity(0.8)
+                .quietRuleReveal(delay: 0.12)
+        }
+        .quietReveal(duration: MotionToken.slow, blur: 1)
+    }
+}
+
+private struct ChoiceOptionRow: View {
+    let option: ChoiceOption
+    let isEnabled: Bool
+    let isPending: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .firstTextBaseline, spacing: 13) {
+                Text("\(option.index)")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(option.isFreeWrite ? Theme.muted : Theme.secondary)
+                    .frame(width: 18, alignment: .leading)
+
+                Text(option.text)
+                    .font(.system(size: 16, design: .serif))
+                    .lineSpacing(5)
+                    .foregroundStyle(option.isFreeWrite ? Theme.secondary : Theme.text)
+
+                Spacer(minLength: 12)
+            }
+            .padding(.vertical, 11)
+            .padding(.horizontal, 12)
+            .background(isPending ? Theme.subtle : Color.clear)
+            .overlay {
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isPending ? Theme.borderFocus : Theme.border, lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled || isPending ? 1 : 0.58)
+    }
+}
+
+private struct PendingChoiceConfirmation: View {
+    let option: ChoiceOption
+    let onConfirm: () -> Void
+    let onEdit: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("選択: \(option.index). \(option.text)")
+                .font(.system(size: 16, design: .serif))
+                .foregroundStyle(Theme.text)
+                .lineSpacing(5)
+
+            HStack(spacing: 18) {
+                Button("このまま掘る", action: onConfirm)
+                    .buttonStyle(QuietButtonStyle(prominent: true))
+                Button("少し直す", action: onEdit)
+                    .buttonStyle(QuietButtonStyle())
+            }
+        }
+        .padding(.top, 2)
+    }
+}
+
+private struct GeneratingChoiceBlock: View {
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            Text("問いを整えています")
+                .font(.system(size: 13, design: .monospaced))
+                .foregroundStyle(Theme.secondary)
+            StreamingCursor()
+                .frame(width: 8)
+        }
+        .quietReveal(duration: MotionToken.base, blur: 1)
     }
 }
 

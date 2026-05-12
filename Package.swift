@@ -19,6 +19,10 @@ let package = Package(
                 .linkedFramework("Speech"),
                 .linkedFramework("SwiftUI")
             ]
+        ),
+        .testTarget(
+            name: "DiguestTests",
+            dependencies: ["Diguest"]
         )
     ]
 )

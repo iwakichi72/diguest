@@ -16,28 +16,23 @@ struct NoteStore {
 
     func buildMarkdown(
         theme: String,
-        messages: [Message],
+        seedText: String,
+        choiceTurns: [ChoiceTurn],
         model: String,
         startedAt: Date,
         summary: String,
         surfaced: [String]
     ) -> String {
-        let turns = messages.filter { $0.role == .user }.count
+        let turns = ChoiceTurnLogBuilder.answeredTurnCount(seedText: seedText, turns: choiceTurns)
         let isoDate = ISO8601DateFormatter().string(from: startedAt)
         let surfacedSection = surfaced.isEmpty ? "_（なし）_" : surfaced.map { "- \($0)" }.joined(separator: "\n")
-        let dialogueLog = messages
-            .filter { $0.role != .system }
-            .map { message in
-                let label = message.role == .user ? "**You:**" : "**Diguest:**"
-                return "\(label)\n\n\(message.content)"
-            }
-            .joined(separator: "\n\n---\n\n")
+        let dialogueLog = ChoiceTurnLogBuilder.dialogueLog(seedText: seedText, turns: choiceTurns)
 
         return [
             "---",
-            "date: \(isoDate)",
-            "theme: \(theme)",
-            "model: \(model)",
+            "date: \(frontmatterScalar(isoDate))",
+            "theme: \(frontmatterScalar(theme))",
+            "model: \(frontmatterScalar(model))",
             "turns: \(turns)",
             "---",
             "",
@@ -144,11 +139,12 @@ struct NoteStore {
         guard let frontmatter = parts.first else { return nil }
 
         func value(_ key: String) -> String {
-            frontmatter
+            let rawValue = frontmatter
                 .components(separatedBy: "\n")
                 .first { $0.hasPrefix("\(key):") }?
                 .dropFirst(key.count + 1)
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return unescapeFrontmatterScalar(rawValue)
         }
 
         return NoteMetadata(
@@ -159,5 +155,61 @@ struct NoteStore {
             turns: Int(value("turns")) ?? 0
         )
     }
-}
 
+    private func frontmatterScalar(_ value: String) -> String {
+        let escaped = value.reduce(into: "") { result, character in
+            switch character {
+            case "\\":
+                result += "\\\\"
+            case "\"":
+                result += "\\\""
+            case "\n":
+                result += "\\n"
+            case "\r":
+                result += "\\r"
+            case "\t":
+                result += "\\t"
+            default:
+                result.append(character)
+            }
+        }
+
+        return "\"\(escaped)\""
+    }
+
+    private func unescapeFrontmatterScalar(_ value: String) -> String {
+        guard value.hasPrefix("\""), value.hasSuffix("\""), value.count >= 2 else {
+            return value
+        }
+
+        let inner = value.dropFirst().dropLast()
+        var result = ""
+        var isEscaped = false
+
+        for character in inner {
+            if isEscaped {
+                switch character {
+                case "n":
+                    result.append("\n")
+                case "r":
+                    result.append("\r")
+                case "t":
+                    result.append("\t")
+                default:
+                    result.append(character)
+                }
+                isEscaped = false
+            } else if character == "\\" {
+                isEscaped = true
+            } else {
+                result.append(character)
+            }
+        }
+
+        if isEscaped {
+            result.append("\\")
+        }
+
+        return result
+    }
+}

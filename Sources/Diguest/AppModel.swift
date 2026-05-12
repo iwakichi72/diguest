@@ -9,6 +9,10 @@ final class AppModel: ObservableObject {
     @Published var theme = ""
     @Published var input = ""
     @Published var messages: [Message] = []
+    @Published var seedText = ""
+    @Published var choiceTurns: [ChoiceTurn] = []
+    @Published var manualAnswerMode: ManualAnswerMode?
+    @Published var pendingChoice: ChoiceOption?
     @Published var isStreaming = false
     @Published var isGeneratingMarkdown = false
     @Published var markdownPreview = ""
@@ -39,6 +43,10 @@ final class AppModel: ObservableObject {
     func showThemeEntry() {
         theme = ""
         input = ""
+        seedText = ""
+        choiceTurns = []
+        manualAnswerMode = nil
+        pendingChoice = nil
         errorMessage = nil
         screen = .themeEntry
     }
@@ -50,6 +58,10 @@ final class AppModel: ObservableObject {
         startedAt = Date()
         theme = trimmedTheme
         messages = []
+        seedText = ""
+        choiceTurns = []
+        manualAnswerMode = nil
+        pendingChoice = nil
         input = ""
         errorMessage = nil
         screen = .session
@@ -59,30 +71,55 @@ final class AppModel: ObservableObject {
         let content = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty, !isStreaming else { return }
 
+        if manualAnswerMode != nil {
+            submitManualAnswer(content)
+            return
+        }
+
+        guard choiceTurns.isEmpty else { return }
+
+        seedText = content
         input = ""
         messages.append(Message(role: .user, content: content))
-        messages.append(Message(role: .assistant, content: ""))
-        isStreaming = true
         errorMessage = nil
 
-        let history = [Message(role: .system, content: Prompts.system)] + messages.filter { !$0.content.isEmpty }
-        let client = OllamaClient(config: config)
+        generateChoiceTurn()
+    }
 
-        Task {
-            do {
-                let stream = try await client.streamChat(messages: history)
-                for try await chunk in stream {
-                    appendAssistantChunk(chunk)
-                }
-                isStreaming = false
-            } catch {
-                if messages.last?.role == .assistant, messages.last?.content.isEmpty == true {
-                    messages.removeLast()
-                }
-                isStreaming = false
-                errorMessage = error.localizedDescription
-            }
+    func selectOption(_ option: ChoiceOption) {
+        guard !isStreaming, !isGeneratingMarkdown, activeTurnIndex != nil else { return }
+
+        if option.isFreeWrite {
+            pendingChoice = nil
+            manualAnswerMode = .freeWrite
+            input = ""
+        } else {
+            pendingChoice = option
+            manualAnswerMode = nil
+            input = ""
         }
+    }
+
+    func confirmPendingChoice() {
+        guard let option = pendingChoice, !isStreaming else { return }
+
+        let answer = ChoiceAnswer.selected(index: option.index, text: option.text)
+        pendingChoice = nil
+        recordAnswer(answer)
+    }
+
+    func editPendingChoice() {
+        guard let option = pendingChoice, !isStreaming else { return }
+
+        input = option.text
+        manualAnswerMode = .edit(optionIndex: option.index, originalText: option.text)
+        pendingChoice = nil
+    }
+
+    func cancelManualAnswer() {
+        input = ""
+        manualAnswerMode = nil
+        pendingChoice = nil
     }
 
     func toggleSpeech() {
@@ -98,7 +135,7 @@ final class AppModel: ObservableObject {
     }
 
     func endSession() {
-        guard !messages.isEmpty else {
+        guard !messages.isEmpty || !choiceTurns.isEmpty else {
             screen = .home
             return
         }
@@ -106,11 +143,9 @@ final class AppModel: ObservableObject {
         isGeneratingMarkdown = true
         errorMessage = nil
         let client = OllamaClient(config: config)
-        let log = messages
-            .map { "\($0.role == .user ? "You" : "Diguest"): \($0.content)" }
-            .joined(separator: "\n\n")
+        let log = ChoiceTurnLogBuilder.dialogueLog(seedText: seedText, turns: choiceTurns)
         let summaryMessages = [
-            Message(role: .system, content: Prompts.system),
+            Message(role: .system, content: Prompts.summarySystem),
             Message(role: .user, content: Prompts.summary(theme: theme, log: log))
         ]
 
@@ -131,7 +166,8 @@ final class AppModel: ObservableObject {
 
             markdownPreview = noteStore.buildMarkdown(
                 theme: theme,
-                messages: messages,
+                seedText: seedText,
+                choiceTurns: choiceTurns,
                 model: config.ollamaModel,
                 startedAt: startedAt,
                 summary: summary,
@@ -188,14 +224,6 @@ final class AppModel: ObservableObject {
         screen = .home
     }
 
-    private func appendAssistantChunk(_ chunk: String) {
-        guard let lastIndex = messages.indices.last, messages[lastIndex].role == .assistant else {
-            return
-        }
-
-        messages[lastIndex].content += chunk
-    }
-
     private func appendSpeechText(base: String, transcript: String) -> String {
         let spoken = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !spoken.isEmpty else { return base }
@@ -204,18 +232,83 @@ final class AppModel: ObservableObject {
     }
 
     private func parseSummary(_ text: String) -> SummaryPayload? {
-        guard
-            let start = text.firstIndex(of: "{"),
-            let end = text.lastIndex(of: "}")
-        else {
-            return nil
-        }
-
-        let json = String(text[start...end])
+        guard let json = ChoiceResponseParser.extractFirstJSONObject(from: text) else { return nil }
         guard let data = json.data(using: .utf8) else {
             return nil
         }
 
         return try? JSONDecoder().decode(SummaryPayload.self, from: data)
+    }
+
+    private var activeTurnIndex: Int? {
+        choiceTurns.indices.last { choiceTurns[$0].answer == nil }
+    }
+
+    private func submitManualAnswer(_ content: String) {
+        guard let manualAnswerMode else { return }
+
+        let answer: ChoiceAnswer
+        switch manualAnswerMode {
+        case .freeWrite:
+            answer = .freeWritten(content)
+        case .edit(let optionIndex, let originalText):
+            answer = .edited(originalIndex: optionIndex, originalText: originalText, editedText: content)
+        }
+
+        input = ""
+        self.manualAnswerMode = nil
+        pendingChoice = nil
+        recordAnswer(answer)
+    }
+
+    private func recordAnswer(_ answer: ChoiceAnswer) {
+        guard let index = activeTurnIndex else { return }
+
+        choiceTurns[index].answer = answer
+        messages.append(Message(role: .user, content: ChoiceTurnLogBuilder.answerText(for: answer)))
+        errorMessage = nil
+
+        generateChoiceTurn()
+    }
+
+    private func generateChoiceTurn() {
+        guard !messages.isEmpty, !isStreaming else { return }
+
+        isStreaming = true
+        errorMessage = nil
+        let history = [Message(role: .system, content: Prompts.system)] + messages
+        let client = OllamaClient(config: config)
+
+        Task {
+            do {
+                let stream = try await client.streamChat(messages: history)
+                var rawAssistantText = ""
+                for try await chunk in stream {
+                    rawAssistantText += chunk
+                }
+
+                switch ChoiceResponseParser.parse(rawAssistantText) {
+                case .choice(let turn):
+                    choiceTurns.append(turn)
+                    messages.append(Message(role: .assistant, content: ChoiceTurnLogBuilder.assistantText(for: turn)))
+                    manualAnswerMode = nil
+                case .fallback(let question, let rawAssistantText):
+                    let turn = ChoiceTurn(
+                        question: question,
+                        options: ChoiceResponseParser.normalizedOptions(from: ChoiceResponseParser.fallbackOptions),
+                        rawAssistantText: rawAssistantText,
+                        isFallback: true
+                    )
+                    choiceTurns.append(turn)
+                    messages.append(Message(role: .assistant, content: ChoiceTurnLogBuilder.assistantText(for: turn)))
+                    manualAnswerMode = nil
+                }
+
+                isStreaming = false
+            } catch {
+                isStreaming = false
+                errorMessage = error.localizedDescription
+            }
+        }
     }
 }
