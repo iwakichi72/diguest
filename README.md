@@ -61,9 +61,19 @@ swift run Diguest
 {
   "ollamaBaseUrl": "http://localhost:11434",
   "ollamaModel": "gemma4:e4b",
-  "notesDir": "~/diguest"
+  "notesDir": "~/diguest",
+  "enableDigAnimation": true,
+  "digAnimationIntensity": "normal"
 }
 ```
+
+`enableDigAnimation` と `digAnimationIntensity` は省略しても動作します（既存の `config.json` との互換性を保つため、未指定時はそれぞれ `true` / `"normal"` が使われます）。
+
+## 掘削の演出
+
+セッション中、AIが問い返すたびに「地表 → 柔らかい土 → 根 → 堆積層 → 岩盤 → 結晶層 → 深層」と背景の地層と画面端の深度メーター (`Depth 04 / Roots Layer` 等) が進みます。問いの言葉に `?` / `？` / `なぜ` / `本当に` などのマーカーが含まれる場合は通常より一段深く進みます。
+
+`digAnimationIntensity` は `minimal` / `normal` / `rich` から選べます。設定画面のスイッチで完全に無効化することもできます。macOSの「視差効果を減らす」(Reduce Motion) を有効にしている場合は、揺れ・粒子・微細な動きが自動的に抑えられます。
 
 ## 注意事項
 
