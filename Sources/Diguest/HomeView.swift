@@ -28,6 +28,11 @@ struct HomeView: View {
                         .buttonStyle(QuietButtonStyle(prominent: true))
                     }
 
+                    if model.ollamaCheckState == .unreachable {
+                        OllamaUnreachableCard()
+                            .quietReveal(duration: MotionToken.base, blur: 1)
+                    }
+
                     Rectangle()
                         .fill(Theme.border)
                         .frame(height: 1)
@@ -38,9 +43,15 @@ struct HomeView: View {
                             .foregroundStyle(Theme.secondary)
 
                         if model.notes.isEmpty {
-                            Text("最初の問いを立ててみよう")
-                                .font(.system(size: 15, design: .serif))
-                                .foregroundStyle(Theme.secondary)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("まだノートはありません")
+                                    .font(.system(size: 15, design: .serif))
+                                    .foregroundStyle(Theme.secondary)
+                                Text("最初のセッションを終えると、ここにノートが残ります。")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(Theme.muted)
+                                    .lineSpacing(3)
+                            }
                         } else {
                             ForEach(model.notes) { note in
                                 Button {
@@ -69,10 +80,55 @@ struct HomeView: View {
                 .padding(.bottom, 40)
             }
         }
+        .task {
+            await model.refreshConnection()
+        }
     }
 
     private func shortDate(_ raw: String) -> String {
         String(raw.prefix(10))
+    }
+}
+
+private struct OllamaUnreachableCard: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Theme.error)
+                    .frame(width: 7, height: 7)
+                Text("Ollamaが見つかりません")
+                    .font(.system(size: 14, design: .serif))
+                    .foregroundStyle(Theme.text)
+            }
+
+            Text("localhost:11434 に接続できませんでした。Ollama を起動してからもう一度試してください。")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.secondary)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 14) {
+                Button("もう一度試す") {
+                    Task { await model.refreshConnection() }
+                }
+                .buttonStyle(QuietButtonStyle())
+
+                Button("設定を開く") {
+                    model.screen = .settings
+                }
+                .buttonStyle(QuietButtonStyle())
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.subtle)
+        .overlay {
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(Theme.error.opacity(0.35), lineWidth: 1)
+        }
     }
 }
 

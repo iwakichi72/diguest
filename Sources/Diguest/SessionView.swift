@@ -4,6 +4,7 @@ struct SessionView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var isFocused: Bool
+    @State private var showEndConfirmation = false
 
     var body: some View {
         ZStack {
@@ -52,12 +53,18 @@ struct SessionView: View {
                 title: model.theme,
                 trailing: AnyView(
                     Button(model.isGeneratingMarkdown ? "まとめています..." : "ここで終える") {
-                        model.endSession()
+                        if model.isGeneratingMarkdown { return }
+                        showEndConfirmation = true
                     }
                     .buttonStyle(QuietButtonStyle())
-                    .disabled(model.isStreaming || model.isGeneratingMarkdown)
+                    .disabled(model.isStreaming || model.isGeneratingMarkdown || showEndConfirmation)
                 )
             )
+
+            if showEndConfirmation {
+                endConfirmationBar
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
 
             ScrollViewReader { proxy in
                 ScrollView {
@@ -93,10 +100,10 @@ struct SessionView: View {
                         }
 
                         if let error = model.errorMessage {
-                            Text(error)
-                                .font(.system(size: 13))
-                                .foregroundStyle(Theme.error)
-                                .quietReveal(duration: MotionToken.base, blur: 1)
+                            SessionErrorCard(detail: error) {
+                                model.retryStreaming()
+                            }
+                            .quietReveal(duration: MotionToken.base, blur: 1)
                         }
                     }
                     .frame(maxWidth: 680, alignment: .leading)
@@ -130,8 +137,38 @@ struct SessionView: View {
             inputArea
         }
         .animation(MotionToken.animation(MotionToken.base, reduceMotion: reduceMotion), value: model.isGeneratingMarkdown)
+        .animation(MotionToken.animation(MotionToken.base, reduceMotion: reduceMotion), value: showEndConfirmation)
         .onAppear {
             isFocused = true
+        }
+        .onChange(of: model.screen) { _ in
+            showEndConfirmation = false
+        }
+    }
+
+    private var endConfirmationBar: some View {
+        HStack(spacing: 14) {
+            Text("今日はここで終えますか？")
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.text)
+            Spacer()
+            Button("掘り続ける") {
+                showEndConfirmation = false
+            }
+            .buttonStyle(QuietButtonStyle())
+            .keyboardShortcut(.cancelAction)
+
+            Button("終える") {
+                showEndConfirmation = false
+                model.endSession()
+            }
+            .buttonStyle(QuietButtonStyle(prominent: true))
+        }
+        .padding(.horizontal, 28)
+        .padding(.vertical, 12)
+        .background(Theme.subtle)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Theme.border).frame(height: 1)
         }
     }
 
@@ -151,7 +188,7 @@ struct SessionView: View {
                     .foregroundStyle(Theme.text)
                     .scrollContentBackground(.hidden)
                     .padding(12)
-                    .frame(minHeight: 118, maxHeight: 150)
+                    .frame(minHeight: 118, maxHeight: 260)
                     .background(Theme.subtle)
                     .overlay {
                         RoundedRectangle(cornerRadius: 6)
@@ -492,5 +529,47 @@ private struct MarkdownAssemblyView: View {
     var body: some View {
         PaperAssemblyView()
             .quietReveal(duration: 0.44, blur: 4, scale: 0.985)
+    }
+}
+
+private struct SessionErrorCard: View {
+    let detail: String
+    let onRetry: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Theme.error)
+                    .frame(width: 7, height: 7)
+                Text("接続が切れました")
+                    .font(.system(size: 14, design: .serif))
+                    .foregroundStyle(Theme.text)
+            }
+
+            Text("Ollama との接続が途切れました。対話内容はまだ残っています。接続を確認してください。")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.secondary)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !detail.isEmpty {
+                Text(detail)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Theme.muted)
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button("もう一度試す", action: onRetry)
+                .buttonStyle(QuietButtonStyle())
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.subtle)
+        .overlay {
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(Theme.error.opacity(0.35), lineWidth: 1)
+        }
     }
 }

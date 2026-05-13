@@ -1,6 +1,12 @@
 import Combine
 import Foundation
 
+enum OllamaCheckState {
+    case unknown
+    case reachable
+    case unreachable
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     @Published var screen: AppScreen = .home
@@ -18,6 +24,7 @@ final class AppModel: ObservableObject {
     @Published var markdownPreview = ""
     @Published var errorMessage: String?
     @Published var isOllamaReachable = false
+    @Published var ollamaCheckState: OllamaCheckState = .unknown
     @Published var digDepth: DigDepth = .initial
     @Published var digPulseTick: Int = 0
     @Published var digTransitionTick: Int = 0
@@ -211,7 +218,16 @@ final class AppModel: ObservableObject {
     }
 
     func refreshConnection() async {
-        isOllamaReachable = await OllamaClient(config: config).checkConnection()
+        let reachable = await OllamaClient(config: config).checkConnection()
+        isOllamaReachable = reachable
+        ollamaCheckState = reachable ? .reachable : .unreachable
+    }
+
+    func retryStreaming() {
+        guard !isStreaming, !isGeneratingMarkdown, !messages.isEmpty else { return }
+        errorMessage = nil
+        Task { await refreshConnection() }
+        generateChoiceTurn()
     }
 
     func saveSettings() {
