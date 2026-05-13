@@ -82,6 +82,26 @@ struct NoteMetadata: Identifiable, Equatable {
     let date: String
     let model: String
     let turns: Int
+    let depthLevel: Int?
+    let seedExcerpt: String?
+
+    init(
+        fileName: String,
+        theme: String,
+        date: String,
+        model: String,
+        turns: Int,
+        depthLevel: Int? = nil,
+        seedExcerpt: String? = nil
+    ) {
+        self.fileName = fileName
+        self.theme = theme
+        self.date = date
+        self.model = model
+        self.turns = turns
+        self.depthLevel = depthLevel
+        self.seedExcerpt = seedExcerpt
+    }
 }
 
 struct NoteContent: Equatable {
@@ -154,6 +174,7 @@ enum AppScreen: Equatable {
     case themeEntry
     case session
     case preview
+    case noteSaved(NoteContent)
     case note(NoteContent)
     case settings
 }

@@ -21,12 +21,14 @@ struct NoteStore {
         model: String,
         startedAt: Date,
         summary: String,
-        surfaced: [String]
+        surfaced: [String],
+        depthLevel: Int = 0
     ) -> String {
         let turns = ChoiceTurnLogBuilder.answeredTurnCount(seedText: seedText, turns: choiceTurns)
         let isoDate = ISO8601DateFormatter().string(from: startedAt)
         let surfacedSection = surfaced.isEmpty ? "_（なし）_" : surfaced.map { "- \($0)" }.joined(separator: "\n")
         let dialogueLog = ChoiceTurnLogBuilder.dialogueLog(seedText: seedText, turns: choiceTurns)
+        let seedExcerpt = makeSeedExcerpt(from: seedText)
 
         return [
             "---",
@@ -34,6 +36,8 @@ struct NoteStore {
             "theme: \(frontmatterScalar(theme))",
             "model: \(frontmatterScalar(model))",
             "turns: \(turns)",
+            "depth: \(depthLevel)",
+            "seed: \(frontmatterScalar(seedExcerpt))",
             "---",
             "",
             "# \(theme)",
@@ -147,13 +151,31 @@ struct NoteStore {
             return unescapeFrontmatterScalar(rawValue)
         }
 
+        let depthRaw = value("depth")
+        let seedRaw = value("seed")
+
         return NoteMetadata(
             fileName: fileName,
             theme: value("theme"),
             date: value("date"),
             model: value("model"),
-            turns: Int(value("turns")) ?? 0
+            turns: Int(value("turns")) ?? 0,
+            depthLevel: depthRaw.isEmpty ? nil : Int(depthRaw),
+            seedExcerpt: seedRaw.isEmpty ? nil : seedRaw
         )
+    }
+
+    private func makeSeedExcerpt(from seedText: String) -> String {
+        let firstLine = seedText
+            .components(separatedBy: .newlines)
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        guard !firstLine.isEmpty else { return "" }
+
+        let limit = 36
+        if firstLine.count <= limit { return firstLine }
+        return String(firstLine.prefix(limit)) + "…"
     }
 
     private func frontmatterScalar(_ value: String) -> String {
