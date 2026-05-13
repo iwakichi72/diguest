@@ -6,6 +6,10 @@
   <string>ja</string>
   <key>CFBundleExecutable</key>
   <string>Diguest</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
+  <key>CFBundleIconName</key>
+  <string>AppIcon</string>
   <key>CFBundleIdentifier</key>
   <string>local.diguest.mac</string>
   <key>CFBundleInfoDictionaryVersion</key>
