@@ -63,6 +63,18 @@ final class AppModel: ObservableObject {
         screen = .themeEntry
     }
 
+    var recentThemes: [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for note in notes {
+            let trimmed = note.theme.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, seen.insert(trimmed).inserted else { continue }
+            result.append(trimmed)
+            if result.count >= 3 { break }
+        }
+        return result
+    }
+
     func startSession() {
         let trimmedTheme = theme.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTheme.isEmpty else { return }
@@ -185,7 +197,8 @@ final class AppModel: ObservableObject {
                 model: config.ollamaModel,
                 startedAt: startedAt,
                 summary: summary,
-                surfaced: surfaced
+                surfaced: surfaced,
+                depthLevel: digDepth.level
             )
             isGeneratingMarkdown = false
             screen = .preview
@@ -198,7 +211,7 @@ final class AppModel: ObservableObject {
             let savedName = try noteStore.save(markdown: markdownPreview, fileName: fileName, config: config)
             reloadNotes()
             if let note = noteStore.read(fileName: savedName, config: config) {
-                screen = .note(note)
+                screen = .noteSaved(note)
             } else {
                 screen = .home
             }
@@ -244,6 +257,7 @@ final class AppModel: ObservableObject {
 
     func goHome() {
         errorMessage = nil
+        resetDigDepth()
         screen = .home
     }
 
