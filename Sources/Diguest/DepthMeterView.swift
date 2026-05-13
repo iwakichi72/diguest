@@ -8,22 +8,15 @@ struct DepthMeterView: View {
     @State private var emphasized = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("DEPTH")
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
-                    .tracking(1.6)
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(depth.currentLayer.displayName)
+                    .font(.system(size: 17, design: .serif))
+                    .foregroundStyle(emphasized ? depth.currentLayer.accentColor : Theme.text)
+                Text("深さ \(levelText)")
+                    .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(Theme.muted)
-
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(levelText)
-                        .font(.system(size: 26, weight: .regular, design: .monospaced))
-                        .foregroundStyle(emphasized ? depth.currentLayer.accentColor : Theme.secondary)
-                        .monospacedDigit()
-                    Text("/ \(depth.currentLayer.meterLabel)")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(Theme.muted)
-                }
+                    .monospacedDigit()
             }
 
             DepthBar(
@@ -35,17 +28,12 @@ struct DepthMeterView: View {
             )
             .frame(width: 96, height: 3)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(depth.currentLayer.displayName)
-                    .font(.system(size: 11, design: .serif))
-                    .foregroundStyle(Theme.secondary)
-                Text(depth.currentLayer.subtitle)
-                    .font(.system(size: 11, design: .serif))
-                    .italic()
-                    .foregroundStyle(Theme.muted)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text(depth.currentLayer.subtitle)
+                .font(.system(size: 11, design: .serif))
+                .italic()
+                .foregroundStyle(Theme.muted)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 14)
@@ -118,10 +106,10 @@ struct CrystallizationView: View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text("今日掘った深さ")
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(.system(size: 13, design: .serif))
                     .foregroundStyle(Theme.secondary)
-                Text("Depth \(String(format: "%02d", depth.level)) · \(depth.currentLayer.meterLabel)")
-                    .font(.system(size: 12, design: .monospaced))
+                Text("\(depth.currentLayer.displayName) ・ 深さ \(String(format: "%02d", depth.level))")
+                    .font(.system(size: 13, design: .serif))
                     .foregroundStyle(depth.currentLayer.accentColor.opacity(0.85))
             }
             .opacity(revealed ? 1 : 0)
