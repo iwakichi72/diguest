@@ -45,6 +45,32 @@ struct ThemeEntryView: View {
                 .buttonStyle(QuietButtonStyle(prominent: true))
                 .disabled(model.theme.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .opacity(model.theme.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.35 : 1)
+
+                if !model.recentThemes.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("掘りかけのテーマから")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.muted)
+                            .padding(.top, 18)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(model.recentThemes, id: \.self) { theme in
+                                Button {
+                                    model.theme = theme
+                                    isFocused = true
+                                } label: {
+                                    Text(theme)
+                                        .font(.system(size: 14, design: .serif))
+                                        .foregroundStyle(Theme.secondary)
+                                        .lineLimit(1)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.vertical, 4)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
             }
             .frame(maxWidth: 680, alignment: .leading)
             .padding(.horizontal, 28)
