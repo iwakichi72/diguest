@@ -18,6 +18,10 @@ final class AppModel: ObservableObject {
     @Published var markdownPreview = ""
     @Published var errorMessage: String?
     @Published var isOllamaReachable = false
+    @Published var digDepth: DigDepth = .initial
+    @Published var digPulseTick: Int = 0
+    @Published var digTransitionTick: Int = 0
+    @Published var digTransitionStrength: Double = 1.0
 
     let speech = SpeechInputController()
 
@@ -48,6 +52,7 @@ final class AppModel: ObservableObject {
         manualAnswerMode = nil
         pendingChoice = nil
         errorMessage = nil
+        resetDigDepth()
         screen = .themeEntry
     }
 
@@ -64,6 +69,7 @@ final class AppModel: ObservableObject {
         pendingChoice = nil
         input = ""
         errorMessage = nil
+        resetDigDepth()
         screen = .session
     }
 
@@ -83,6 +89,7 @@ final class AppModel: ObservableObject {
         messages.append(Message(role: .user, content: content))
         errorMessage = nil
 
+        pulseDigSurface()
         generateChoiceTurn()
     }
 
@@ -268,7 +275,29 @@ final class AppModel: ObservableObject {
         messages.append(Message(role: .user, content: ChoiceTurnLogBuilder.answerText(for: answer)))
         errorMessage = nil
 
+        pulseDigSurface()
         generateChoiceTurn()
+    }
+
+    private func resetDigDepth() {
+        digDepth = .initial
+        digPulseTick = 0
+        digTransitionTick = 0
+        digTransitionStrength = 1.0
+    }
+
+    private func pulseDigSurface() {
+        digPulseTick &+= 1
+    }
+
+    private func advanceDigDepth(for assistantText: String) {
+        let hasDeepMarker = DigQuestionDetector.containsQuestion(assistantText)
+        let step = hasDeepMarker ? 2 : 1
+        let seed = Double.random(in: 0..<1)
+        let next = DigDepthEngine.advance(from: digDepth, by: step, canvasSeed: seed)
+        digDepth = next
+        digTransitionStrength = hasDeepMarker ? 1.35 : 1.0
+        digTransitionTick &+= 1
     }
 
     private func generateChoiceTurn() {
@@ -292,6 +321,7 @@ final class AppModel: ObservableObject {
                     choiceTurns.append(turn)
                     messages.append(Message(role: .assistant, content: ChoiceTurnLogBuilder.assistantText(for: turn)))
                     manualAnswerMode = nil
+                    advanceDigDepth(for: turn.question)
                 case .fallback(let question, let rawAssistantText):
                     let turn = ChoiceTurn(
                         question: question,
@@ -302,6 +332,7 @@ final class AppModel: ObservableObject {
                     choiceTurns.append(turn)
                     messages.append(Message(role: .assistant, content: ChoiceTurnLogBuilder.assistantText(for: turn)))
                     manualAnswerMode = nil
+                    advanceDigDepth(for: question)
                 }
 
                 isStreaming = false

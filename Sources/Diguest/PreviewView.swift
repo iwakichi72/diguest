@@ -22,14 +22,21 @@ struct PreviewView: View {
             )
 
             ScrollView {
-                Text(model.markdownPreview)
-                    .font(.system(size: 15, design: .monospaced))
-                    .foregroundStyle(Theme.text)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: 760, alignment: .leading)
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 36)
-                    .quietReveal(delay: 0.08, duration: 0.46, blur: 4.5, scale: 0.99)
+                VStack(alignment: .leading, spacing: 28) {
+                    if model.config.enableDigAnimation && model.digDepth.level > 0 {
+                        CrystallizationView(depth: model.digDepth)
+                            .padding(.bottom, 8)
+                    }
+
+                    Text(model.markdownPreview)
+                        .font(.system(size: 15, design: .monospaced))
+                        .foregroundStyle(Theme.text)
+                        .textSelection(.enabled)
+                        .quietReveal(delay: 0.08, duration: 0.46, blur: 4.5, scale: 0.99)
+                }
+                .frame(maxWidth: 760, alignment: .leading)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 36)
             }
 
             if let error = model.errorMessage {

@@ -33,6 +33,53 @@ struct SettingsView: View {
                 settingField("モデル", text: $model.config.ollamaModel)
                 settingField("保存先", text: $model.config.notesDir)
 
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("掘削の演出")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.secondary)
+
+                    Toggle(isOn: $model.config.enableDigAnimation) {
+                        Text("背景に地層と深度メーターを表示する")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Theme.text)
+                    }
+                    .toggleStyle(.switch)
+                    .tint(Theme.accent)
+
+                    HStack(spacing: 14) {
+                        Text("演出の強さ")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.muted)
+                        ForEach(DigAnimationIntensity.allCases, id: \.self) { value in
+                            Button {
+                                model.config.digAnimationIntensity = value
+                            } label: {
+                                Text(intensityLabel(value))
+                                    .font(.system(size: 12, design: .monospaced))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .fill(model.config.digAnimationIntensity == value ? Theme.subtle : Color.clear)
+                                    )
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .stroke(
+                                                model.config.digAnimationIntensity == value ? Theme.borderFocus : Theme.border,
+                                                lineWidth: 1
+                                            )
+                                    }
+                                    .foregroundStyle(
+                                        model.config.digAnimationIntensity == value ? Theme.text : Theme.secondary
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(!model.config.enableDigAnimation)
+                        }
+                    }
+                    .opacity(model.config.enableDigAnimation ? 1 : 0.55)
+                }
+
                 Button("保存") {
                     model.saveSettings()
                 }
@@ -49,6 +96,14 @@ struct SettingsView: View {
             .padding(.top, 64)
 
             Spacer()
+        }
+    }
+
+    private func intensityLabel(_ value: DigAnimationIntensity) -> String {
+        switch value {
+        case .minimal: return "minimal"
+        case .normal: return "normal"
+        case .rich: return "rich"
         }
     }
 

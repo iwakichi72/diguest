@@ -27,12 +27,52 @@ struct AppConfig: Codable, Equatable {
     var ollamaBaseUrl: String
     var ollamaModel: String
     var notesDir: String
+    var enableDigAnimation: Bool
+    var digAnimationIntensity: DigAnimationIntensity
 
     static let defaults = AppConfig(
         ollamaBaseUrl: "http://localhost:11434",
         ollamaModel: "gemma3:4b",
-        notesDir: "~/diguest"
+        notesDir: "~/diguest",
+        enableDigAnimation: true,
+        digAnimationIntensity: .normal
     )
+
+    init(
+        ollamaBaseUrl: String,
+        ollamaModel: String,
+        notesDir: String,
+        enableDigAnimation: Bool = true,
+        digAnimationIntensity: DigAnimationIntensity = .normal
+    ) {
+        self.ollamaBaseUrl = ollamaBaseUrl
+        self.ollamaModel = ollamaModel
+        self.notesDir = notesDir
+        self.enableDigAnimation = enableDigAnimation
+        self.digAnimationIntensity = digAnimationIntensity
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case ollamaBaseUrl
+        case ollamaModel
+        case notesDir
+        case enableDigAnimation
+        case digAnimationIntensity
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.ollamaBaseUrl = try container.decodeIfPresent(String.self, forKey: .ollamaBaseUrl)
+            ?? AppConfig.defaults.ollamaBaseUrl
+        self.ollamaModel = try container.decodeIfPresent(String.self, forKey: .ollamaModel)
+            ?? AppConfig.defaults.ollamaModel
+        self.notesDir = try container.decodeIfPresent(String.self, forKey: .notesDir)
+            ?? AppConfig.defaults.notesDir
+        self.enableDigAnimation = try container.decodeIfPresent(Bool.self, forKey: .enableDigAnimation)
+            ?? AppConfig.defaults.enableDigAnimation
+        self.digAnimationIntensity = try container.decodeIfPresent(DigAnimationIntensity.self, forKey: .digAnimationIntensity)
+            ?? AppConfig.defaults.digAnimationIntensity
+    }
 }
 
 struct NoteMetadata: Identifiable, Equatable {

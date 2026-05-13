@@ -6,6 +6,47 @@ struct SessionView: View {
     @FocusState private var isFocused: Bool
 
     var body: some View {
+        ZStack {
+            if model.config.enableDigAnimation {
+                DigBackgroundView(
+                    depth: model.digDepth,
+                    pulseTick: model.digPulseTick,
+                    transitionTick: model.digTransitionTick,
+                    transitionStrength: model.digTransitionStrength,
+                    enabled: model.config.enableDigAnimation,
+                    intensity: model.config.digAnimationIntensity
+                )
+                .ignoresSafeArea()
+                .transition(.opacity)
+            }
+
+            sessionStack
+                .digSink(
+                    tick: model.digTransitionTick,
+                    strength: model.digTransitionStrength * model.config.digAnimationIntensity.multiplier,
+                    reduceMotion: reduceMotion || !model.config.enableDigAnimation
+                )
+
+            if model.config.enableDigAnimation {
+                VStack {
+                    HStack {
+                        Spacer()
+                        DepthMeterView(
+                            depth: model.digDepth,
+                            transitionTick: model.digTransitionTick
+                        )
+                        .padding(.trailing, 18)
+                        .padding(.top, 78)
+                    }
+                    Spacer()
+                }
+                .allowsHitTesting(false)
+                .transition(.opacity)
+            }
+        }
+    }
+
+    private var sessionStack: some View {
         VStack(spacing: 0) {
             HeaderBar(
                 title: model.theme,
