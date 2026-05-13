@@ -291,7 +291,7 @@ final class AppModel: ObservableObject {
     }
 
     private func advanceDigDepth(for assistantText: String) {
-        let hasDeepMarker = DigQuestionDetector.containsQuestion(assistantText)
+        let hasDeepMarker = DigQuestionDetector.containsDeepMarker(assistantText)
         let step = hasDeepMarker ? 2 : 1
         let seed = Double.random(in: 0..<1)
         let next = DigDepthEngine.advance(from: digDepth, by: step, canvasSeed: seed)

@@ -210,13 +210,25 @@ enum DigAnimationIntensity: String, Codable, Equatable, CaseIterable {
 }
 
 enum DigQuestionDetector {
-    static let markers: [String] = [
-        "?", "？", "なぜ", "どうして", "何が", "どんな", "どこに", "いつ", "本当に"
+    static let questionMarkers: [String] = ["?", "？"]
+    static let deepMarkers: [String] = [
+        "なぜ", "どうして", "何が", "どんな", "どこに", "いつ", "本当に"
     ]
 
     static func containsQuestion(_ text: String) -> Bool {
         guard !text.isEmpty else { return false }
-        for marker in markers where text.contains(marker) {
+        for marker in questionMarkers where text.contains(marker) {
+            return true
+        }
+        for marker in deepMarkers where text.contains(marker) {
+            return true
+        }
+        return false
+    }
+
+    static func containsDeepMarker(_ text: String) -> Bool {
+        guard !text.isEmpty else { return false }
+        for marker in deepMarkers where text.contains(marker) {
             return true
         }
         return false
