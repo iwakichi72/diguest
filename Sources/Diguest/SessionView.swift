@@ -182,6 +182,17 @@ struct SessionView: View {
 
     private var editorArea: some View {
         VStack(spacing: 8) {
+            if showThemeReminder {
+                HStack {
+                    Text("テーマ ・ \(model.theme)")
+                        .font(.system(size: 11, design: .serif))
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer()
+                }
+            }
+
             ZStack(alignment: .topTrailing) {
                 TextEditor(text: $model.input)
                     .font(.system(size: 18, design: .serif))
@@ -280,6 +291,11 @@ struct SessionView: View {
     private var isEditorVisible: Bool {
         guard !model.isGeneratingMarkdown else { return false }
         return (model.choiceTurns.isEmpty && !model.isStreaming) || model.manualAnswerMode != nil
+    }
+
+    private var showThemeReminder: Bool {
+        guard !model.theme.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        return !model.seedText.isEmpty || !model.choiceTurns.isEmpty
     }
 
     private var helperText: String {
@@ -461,31 +477,41 @@ private struct ChoiceOptionRow: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(alignment: .firstTextBaseline, spacing: 13) {
-                Text("\(option.index)")
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(option.isFreeWrite ? Theme.muted : Theme.secondary)
-                    .frame(width: 18, alignment: .leading)
-
-                Text(option.text)
-                    .font(.system(size: 16, design: .serif))
-                    .lineSpacing(5)
-                    .foregroundStyle(option.isFreeWrite ? Theme.secondary : Theme.text)
-
-                Spacer(minLength: 12)
+        VStack(alignment: .leading, spacing: 8) {
+            if option.isFreeWrite {
+                Rectangle()
+                    .fill(Theme.border.opacity(0.45))
+                    .frame(height: 1)
+                    .padding(.top, 2)
             }
-            .padding(.vertical, 11)
-            .padding(.horizontal, 12)
-            .background(isPending ? Theme.subtle : Color.clear)
-            .overlay {
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(isPending ? Theme.borderFocus : Theme.border, lineWidth: 1)
+
+            Button(action: action) {
+                HStack(alignment: .firstTextBaseline, spacing: 13) {
+                    Text("\(option.index)")
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(option.isFreeWrite ? Theme.accent.opacity(0.7) : Theme.secondary)
+                        .frame(width: 18, alignment: .leading)
+
+                    Text(option.isFreeWrite ? "あるいは、自分の言葉で書く" : option.text)
+                        .font(.system(size: 16, design: .serif))
+                        .italic(option.isFreeWrite)
+                        .lineSpacing(5)
+                        .foregroundStyle(option.isFreeWrite ? Theme.secondary : Theme.text)
+
+                    Spacer(minLength: 12)
+                }
+                .padding(.vertical, 11)
+                .padding(.horizontal, 12)
+                .background(isPending ? Theme.subtle : Color.clear)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(isPending ? Theme.borderFocus : Theme.border, lineWidth: 1)
+                }
             }
+            .buttonStyle(.plain)
+            .disabled(!isEnabled)
+            .opacity(isEnabled || isPending ? 1 : 0.58)
         }
-        .buttonStyle(.plain)
-        .disabled(!isEnabled)
-        .opacity(isEnabled || isPending ? 1 : 0.58)
     }
 }
 
