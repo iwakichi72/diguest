@@ -57,17 +57,7 @@ struct HomeView: View {
                                 Button {
                                     model.openNote(note)
                                 } label: {
-                                    HStack(spacing: 18) {
-                                        Text(shortDate(note.date))
-                                            .font(.system(size: 12, design: .monospaced))
-                                            .foregroundStyle(Theme.muted)
-                                            .frame(width: 88, alignment: .leading)
-                                        Text(note.theme)
-                                            .font(.system(size: 16, design: .serif))
-                                            .foregroundStyle(Theme.text)
-                                            .lineLimit(1)
-                                        Spacer()
-                                    }
+                                    NoteRow(note: note)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -83,6 +73,52 @@ struct HomeView: View {
         .task {
             await model.refreshConnection()
         }
+    }
+}
+
+private struct NoteRow: View {
+    let note: NoteMetadata
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 18) {
+            Text(shortDate(note.date))
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(Theme.muted)
+                .frame(width: 88, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(note.theme)
+                    .font(.system(size: 16, design: .serif))
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(1)
+
+                if let layerLine = layerLine {
+                    HStack(spacing: 10) {
+                        Text(layerLine)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(Theme.muted)
+                        if let excerpt = note.seedExcerpt, !excerpt.isEmpty {
+                            Text("「\(excerpt)」")
+                                .font(.system(size: 12, design: .serif))
+                                .italic()
+                                .foregroundStyle(Theme.muted)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
+                    }
+                }
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+    }
+
+    private var layerLine: String? {
+        guard let level = note.depthLevel, level > 0 else { return nil }
+        let layer = DigLayer.layer(forLevel: level)
+        return "\(layer.displayName) ・ 深さ \(String(format: "%02d", level))"
     }
 
     private func shortDate(_ raw: String) -> String {
