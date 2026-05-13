@@ -18,6 +18,8 @@ struct ContentView: View {
                     SessionView()
                 case .preview:
                     PreviewView()
+                case .noteSaved(let note):
+                    NoteSavedView(note: note)
                 case .note(let note):
                     NoteView(note: note)
                 case .settings:
@@ -105,6 +107,8 @@ extension AppScreen {
             return "session"
         case .preview:
             return "preview"
+        case .noteSaved(let note):
+            return "noteSaved-\(note.metadata.fileName)"
         case .note(let note):
             return "note-\(note.metadata.fileName)"
         case .settings:
