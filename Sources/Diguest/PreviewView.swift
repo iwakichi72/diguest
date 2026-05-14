@@ -28,7 +28,7 @@ struct PreviewView: View {
                             .padding(.bottom, 8)
                     }
 
-                    Text(model.markdownPreview)
+                    Text(ResumeSnapshotEncoder.stripBlock(from: model.markdownPreview))
                         .font(.system(size: 15, design: .monospaced))
                         .foregroundStyle(Theme.text)
                         .textSelection(.enabled)

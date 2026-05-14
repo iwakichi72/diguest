@@ -243,6 +243,52 @@ final class AppModel: ObservableObject {
         generateChoiceTurn()
     }
 
+    func resumeFromNote(_ note: NoteContent) {
+        guard let snapshot = note.resumeSnapshot else { return }
+
+        let restoredTurns = ResumeSnapshotDecoder.choiceTurns(from: snapshot)
+        let resumedTheme = note.metadata.theme.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        theme = resumedTheme
+        seedText = snapshot.seed
+        choiceTurns = restoredTurns
+        manualAnswerMode = nil
+        pendingChoice = nil
+        input = ""
+        errorMessage = nil
+        startedAt = Date()
+
+        rebuildMessages(seed: snapshot.seed, turns: restoredTurns)
+        restoreDigDepth(level: snapshot.depth)
+
+        screen = .session
+    }
+
+    private func rebuildMessages(seed: String, turns: [ChoiceTurn]) {
+        var rebuilt: [Message] = []
+        let trimmedSeed = seed.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedSeed.isEmpty {
+            rebuilt.append(Message(role: .user, content: trimmedSeed))
+        }
+        for turn in turns {
+            rebuilt.append(Message(role: .assistant, content: ChoiceTurnLogBuilder.assistantText(for: turn)))
+            if let answer = turn.answer {
+                rebuilt.append(Message(role: .user, content: ChoiceTurnLogBuilder.answerText(for: answer)))
+            }
+        }
+        messages = rebuilt
+    }
+
+    private func restoreDigDepth(level: Int) {
+        let safeLevel = max(0, min(level, 99))
+        let layer = DigLayer.layer(forLevel: safeLevel)
+        let progress = DigDepthEngine.progress(forLevel: safeLevel)
+        digDepth = DigDepth(level: safeLevel, progress: progress, currentLayer: layer, discoveries: [])
+        digPulseTick = 0
+        digTransitionTick = 0
+        digTransitionStrength = 1.0
+    }
+
     func saveSettings() {
         do {
             try configStore.save(config)

@@ -9,15 +9,23 @@ struct NoteView: View {
             HeaderBar(
                 title: note.metadata.theme,
                 trailing: AnyView(
-                    Button("戻る") {
-                        model.goHome()
+                    HStack(spacing: 18) {
+                        if note.resumeSnapshot != nil {
+                            Button("続きを掘る") {
+                                model.resumeFromNote(note)
+                            }
+                            .buttonStyle(QuietButtonStyle(prominent: true))
+                        }
+                        Button("戻る") {
+                            model.goHome()
+                        }
+                        .buttonStyle(QuietButtonStyle())
                     }
-                    .buttonStyle(QuietButtonStyle())
                 )
             )
 
             ScrollView {
-                Text(note.rawMarkdown)
+                Text(ResumeSnapshotEncoder.stripBlock(from: note.rawMarkdown))
                     .font(.system(size: 15, design: .monospaced))
                     .foregroundStyle(Theme.text)
                     .textSelection(.enabled)
