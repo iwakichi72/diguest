@@ -38,16 +38,16 @@ struct HomeView: View {
                         .frame(height: 1)
 
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("過去のノート")
+                        Text("過去の掘り跡")
                             .font(.system(size: 13))
                             .foregroundStyle(Theme.secondary)
 
                         if model.notes.isEmpty {
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("まだノートはありません")
+                                Text("まだ掘り跡はありません")
                                     .font(.system(size: 15, design: .serif))
                                     .foregroundStyle(Theme.secondary)
-                                Text("最初のセッションを終えると、ここにノートが残ります。")
+                                Text("最初のセッションを終えると、ここに掘り跡が残ります。")
                                     .font(.system(size: 13))
                                     .foregroundStyle(Theme.muted)
                                     .lineSpacing(3)

@@ -31,7 +31,7 @@ struct SettingsView: View {
 
                 settingField("Ollama URL", text: $model.config.ollamaBaseUrl)
                 settingField("モデル", text: $model.config.ollamaModel)
-                settingField("保存先", text: $model.config.notesDir)
+                settingField("掘り跡の保存先", text: $model.config.notesDir)
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("掘削の演出")
