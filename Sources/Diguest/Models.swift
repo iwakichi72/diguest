@@ -107,6 +107,13 @@ struct NoteMetadata: Identifiable, Equatable {
 struct NoteContent: Equatable {
     let metadata: NoteMetadata
     let rawMarkdown: String
+    let resumeSnapshot: ResumeSnapshot?
+
+    init(metadata: NoteMetadata, rawMarkdown: String, resumeSnapshot: ResumeSnapshot? = nil) {
+        self.metadata = metadata
+        self.rawMarkdown = rawMarkdown
+        self.resumeSnapshot = resumeSnapshot
+    }
 }
 
 struct SummaryPayload: Codable {
